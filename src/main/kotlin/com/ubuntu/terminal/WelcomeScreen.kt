@@ -2,530 +2,565 @@ package com.ubuntu.terminal
 
 import android.app.Activity
 import android.os.Bundle
-import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.*
-import android.animation.*
-import android.content.res.Configuration
 
 class WelcomeScreen : Activity() {
 
-    private val prefs by lazy {
-        getSharedPreferences("ubuntu_settings", Context.MODE_PRIVATE)
-    }
+    private lateinit var preferences: SharedPreferences
 
-    private val orange = Color.rgb(233, 84, 32)
+    private var darkMode = true
 
-    private var isDark = true
-    private lateinit var root: LinearLayout
-
-    private fun bg(color: Int, radius: Float = 18f): GradientDrawable {
-        return GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = radius
-        }
-    }
+    private var backgroundColor = Color.rgb(15, 17, 22)
+    private var surfaceColor = Color.rgb(25, 28, 35)
+    private var textColor = Color.WHITE
+    private var secondaryColor = Color.rgb(155, 160, 175)
+    private val accentColor = Color.rgb(233, 84, 32)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        isDark = prefs.getBoolean(
-            "dark_mode",
-            true
-        )
+        preferences = getSharedPreferences("ubuntu_settings", MODE_PRIVATE)
 
-        applyTheme()
-        showWelcome()
-    }
+        applySavedTheme()
 
-    private fun applyTheme() {
-        val dark = prefs.getBoolean("dark_mode", true)
-
-        window.statusBarColor =
-            if (dark) Color.rgb(18, 18, 22)
-            else Color.WHITE
-
-        window.navigationBarColor =
-            if (dark) Color.rgb(18, 18, 22)
-            else Color.WHITE
-
-        window.decorView.systemUiVisibility =
-            if (dark) 0
-            else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-                 View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-    }
-
-    private fun background(): Int =
-        if (isDark) Color.rgb(18, 18, 22)
-        else Color.rgb(247, 247, 249)
-
-    private fun surface(): Int =
-        if (isDark) Color.rgb(30, 30, 36)
-        else Color.WHITE
-
-    private fun textColor(): Int =
-        if (isDark) Color.WHITE
-        else Color.rgb(30, 30, 35)
-
-    private fun secondaryColor(): Int =
-        if (isDark) Color.rgb(165, 165, 175)
-        else Color.rgb(110, 110, 120)
-
-    private fun createRoot(): LinearLayout {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(24, 20, 24, 24)
-            setBackgroundColor(background())
+        if (intent.getBooleanExtra("open_settings", false)) {
+            showSettings()
+        } else {
+            showWelcome()
         }
     }
 
-    private fun text(
-        value: String,
+    // ------------------------------------------------
+    // THEME
+    // ------------------------------------------------
+
+    private fun applySavedTheme() {
+        val theme = preferences.getString("theme", "dark") ?: "dark"
+
+        darkMode = when (theme) {
+            "light" -> false
+            "system" -> {
+                val nightMode = resources.configuration.uiMode and
+                    Configuration.UI_MODE_NIGHT_MASK
+
+                nightMode == Configuration.UI_MODE_NIGHT_YES
+            }
+            else -> true
+        }
+
+        backgroundColor = if (darkMode) {
+            Color.rgb(15, 17, 22)
+        } else {
+            Color.rgb(245, 246, 249)
+        }
+
+        surfaceColor = if (darkMode) {
+            Color.rgb(25, 28, 35)
+        } else {
+            Color.WHITE
+        }
+
+        textColor = if (darkMode) Color.WHITE else Color.rgb(25, 28, 35)
+
+        secondaryColor = if (darkMode) {
+            Color.rgb(155, 160, 175)
+        } else {
+            Color.rgb(105, 110, 125)
+        }
+
+        window.statusBarColor = backgroundColor
+        window.navigationBarColor = backgroundColor
+
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility =
+            if (darkMode) 0
+            else View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+                View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+    }
+
+    private fun saveTheme(theme: String) {
+        preferences.edit()
+            .putString("theme", theme)
+            .apply()
+
+        applySavedTheme()
+        showSettings()
+    }
+
+    // ------------------------------------------------
+    // UI HELPERS
+    // ------------------------------------------------
+
+    private fun createLayout(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(backgroundColor)
+            setPadding(dp(24), dp(20), dp(24), dp(20))
+        }
+    }
+
+    private fun createText(
+        text: String,
         size: Float,
-        color: Int,
+        color: Int = textColor,
         bold: Boolean = false
     ): TextView {
         return TextView(this).apply {
-            text = value
+            this.text = text
             textSize = size
             setTextColor(color)
-            typeface = if (bold) {
-                Typeface.create("sans-serif", Typeface.BOLD)
-            } else {
-                Typeface.create("sans-serif", Typeface.NORMAL)
+            if (bold) {
+                setTypeface(null, Typeface.BOLD)
             }
         }
     }
 
-    private fun button(
-        label: String,
-        color: Int,
-        textColor: Int = Color.WHITE
+    private fun createButton(
+        text: String,
+        primary: Boolean = false
     ): TextView {
         return TextView(this).apply {
-            text = label
+            this.text = text
             textSize = 15f
             gravity = Gravity.CENTER
-            setTextColor(textColor)
-            typeface = Typeface.DEFAULT_BOLD
-            background = bg(color, 16f)
-            setPadding(20, 17, 20, 17)
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(if (primary) Color.WHITE else textColor)
+
+            background = roundedBackground(
+                if (primary) accentColor else surfaceColor,
+                14
+            )
+
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+
             isClickable = true
             isFocusable = true
-            elevation = 2f
         }
     }
 
-    private fun showWelcome() {
-
-        applyTheme()
-
-        root = createRoot()
-
-        val settings = text(
-            "⚙ Settings",
-            14f,
-            secondaryColor(),
-            true
-        ).apply {
-            gravity = Gravity.END
-            setPadding(12, 12, 12, 12)
-            setOnClickListener {
-                showSettings()
-            }
+    private fun roundedBackground(
+        color: Int,
+        radius: Int
+    ): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius).toFloat()
         }
+    }
 
-        root.addView(
-            settings,
+    private fun addSpace(
+        layout: LinearLayout,
+        height: Int
+    ) {
+        layout.addView(
+            View(this),
             LinearLayout.LayoutParams(
-                -1,
-                -2
+                1,
+                dp(height)
+            )
+        )
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
+    }
+
+    private fun addButton(
+        layout: LinearLayout,
+        button: TextView,
+        action: () -> Unit
+    ) {
+        layout.addView(
+            button,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(54)
             )
         )
 
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+        button.setOnClickListener {
+            action()
+        }
+    }
+
+    // ------------------------------------------------
+    // WELCOME SCREEN
+    // ------------------------------------------------
+
+    private fun showWelcome() {
+        val root = createLayout()
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(root)
+        }
+
+        val topBar = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
         }
 
         val logo = TextView(this).apply {
-            text = "◉"
-            textSize = 94f
+            text = "U"
+            textSize = 27f
             gravity = Gravity.CENTER
-            setTextColor(orange)
-            typeface = Typeface.DEFAULT_BOLD
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = roundedBackground(accentColor, 16)
         }
 
-        content.addView(
+        topBar.addView(
             logo,
-            LinearLayout.LayoutParams(-1, 150)
+            LinearLayout.LayoutParams(dp(48), dp(48))
         )
 
-        val title = text(
-            "Ubuntu Terminal",
-            30f,
-            textColor(),
+        val brand = createText("Ubuntu Terminal", 19f, textColor, true)
+        brand.setPadding(dp(14), 0, 0, 0)
+
+        topBar.addView(
+            brand,
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+
+        val settingsButton = createText("SETTINGS", 12f, secondaryColor, true)
+        settingsButton.setPadding(dp(12), dp(12), dp(4), dp(12))
+        settingsButton.setOnClickListener {
+            showSettings()
+        }
+
+        topBar.addView(settingsButton)
+
+        root.addView(topBar)
+
+        addSpace(root, 75)
+
+        val label = createText(
+            "LINUX ENVIRONMENT",
+            12f,
+            accentColor,
             true
         )
 
-        title.gravity = Gravity.CENTER
+        root.addView(label)
 
-        content.addView(title)
+        addSpace(root, 15)
 
-        val subtitle = text(
-            "Your Linux environment.\nRight in your hands.",
-            15f,
-            secondaryColor()
+        val title = createText(
+            "Your terminal.\nYour environment.",
+            35f,
+            textColor,
+            true
         )
 
-        subtitle.gravity = Gravity.CENTER
-        subtitle.setLineSpacing(6f, 1f)
+        title.setLineSpacing(dp(4).toFloat(), 1f)
+        root.addView(title)
 
-        val subtitleParams = LinearLayout.LayoutParams(
-            -1,
-            -2
+        addSpace(root, 18)
+
+        val description = createText(
+            "A Linux terminal experience powered by Ubuntu and PRoot.",
+            16f,
+            secondaryColor
         )
 
-        subtitleParams.topMargin = 14
+        description.setLineSpacing(dp(5).toFloat(), 1f)
+        root.addView(description)
 
-        content.addView(subtitle, subtitleParams)
+        addSpace(root, 35)
 
-        val terminalPreview = LinearLayout(this).apply {
+        val preview = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(18, 20, 18, 20)
-            background = bg(surface(), 18f)
+            background = roundedBackground(surfaceColor, 18)
+            setPadding(dp(20), dp(20), dp(20), dp(20))
         }
 
-        val terminalTitle = text(
+        val previewHeader = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val previewTitle = createText(
             "TERMINAL PREVIEW",
             11f,
-            secondaryColor(),
+            secondaryColor,
             true
         )
 
-        terminalPreview.addView(terminalTitle)
-
-        val terminalText = text(
-            "root@ubuntu:~# uname -a\n" +
-            "Linux ubuntu 6.0.0 aarch64\n" +
-            "root@ubuntu:~# _",
-            13f,
-            if (isDark) Color.rgb(140, 230, 150)
-            else Color.rgb(30, 140, 65)
+        previewHeader.addView(
+            previewTitle,
+            LinearLayout.LayoutParams(0, -2, 1f)
         )
 
-        terminalText.typeface = Typeface.MONOSPACE
-        terminalText.setLineSpacing(8f, 1f)
+        val status = createText("● READY", 10f, Color.rgb(85, 200, 130), true)
+        previewHeader.addView(status)
 
-        val terminalParams = LinearLayout.LayoutParams(
-            -1,
-            -2
-        )
+        preview.addView(previewHeader)
 
-        terminalParams.topMargin = 18
+        addSpace(preview, 20)
 
-        terminalPreview.addView(
-            terminalText,
-            terminalParams
-        )
+        val terminalText = TextView(this).apply {
+            text = buildString {
+                append("root@ubuntu:~# ")
+                append("apt update\n")
+                append("\n")
+                append("Reading package lists...\n")
+                append("Building dependency tree...\n")
+                append("\n")
+                append("root@ubuntu:~# ")
+            }
 
-        val contentParams = LinearLayout.LayoutParams(
-            -1,
-            0,
-            1f
-        )
-
-        contentParams.gravity = Gravity.CENTER
-
-        root.addView(content, contentParams)
-
-        val previewParams = LinearLayout.LayoutParams(
-            -1,
-            -2
-        )
-
-        previewParams.bottomMargin = 24
-
-        root.addView(terminalPreview, previewParams)
-
-        val start = button(
-            "Get Started   →",
-            orange
-        )
-
-        start.setOnClickListener {
-            start.animate()
-                .scaleX(0.96f)
-                .scaleY(0.96f)
-                .setDuration(90)
-                .withEndAction {
-                    openTerminal()
-                }
-                .start()
+            textSize = 13f
+            typeface = Typeface.MONOSPACE
+            setTextColor(Color.rgb(120, 210, 150))
+            setLineSpacing(dp(5).toFloat(), 1f)
         }
 
-        root.addView(
-            start,
-            LinearLayout.LayoutParams(-1, -2)
-        )
+        preview.addView(terminalText)
+        root.addView(preview)
 
-        val footer = text(
-            "POWERED BY UBUNTU",
+        addSpace(root, 35)
+
+        val startButton = createButton("Open Terminal  →", true)
+
+        addButton(root, startButton) {
+            openTerminal()
+        }
+
+        addSpace(root, 12)
+
+        val setupButton = createButton("Ubuntu Setup", false)
+
+        addButton(root, setupButton) {
+            showSetupInfo()
+        }
+
+        addSpace(root, 25)
+
+        val footer = createText(
+            "UBUNTU • PROOT • ANDROID",
             10f,
-            secondaryColor(),
+            secondaryColor,
             true
         )
 
         footer.gravity = Gravity.CENTER
+        root.addView(footer)
 
-        val footerParams = LinearLayout.LayoutParams(
-            -1,
-            -2
-        )
-
-        footerParams.topMargin = 22
-
-        root.addView(footer, footerParams)
-
-        setContentView(root)
-
-        root.alpha = 0f
-        root.animate()
-            .alpha(1f)
-            .setDuration(600)
-            .start()
+        setContentView(scroll)
     }
 
+    // ------------------------------------------------
+    // SETTINGS SCREEN
+    // ------------------------------------------------
+
     private fun showSettings() {
-
-        applyTheme()
-
-        root = createRoot()
+        val root = createLayout()
 
         val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        val back = text(
-            "‹",
-            36f,
-            textColor(),
-            true
-        )
-
+        val back = createText("‹", 34f, textColor, false)
+        back.gravity = Gravity.CENTER
         back.setOnClickListener {
             showWelcome()
         }
 
-        header.addView(back)
-
-        val title = text(
-            "Settings",
-            24f,
-            textColor(),
-            true
+        header.addView(
+            back,
+            LinearLayout.LayoutParams(dp(45), dp(48))
         )
 
-        val titleParams = LinearLayout.LayoutParams(
-            0,
-            -2,
-            1f
-        )
+        val heading = createText("Settings", 23f, textColor, true)
 
-        titleParams.leftMargin = 18
-
-        header.addView(title, titleParams)
+        header.addView(heading)
 
         root.addView(header)
 
-        addSpace(root, 32)
+        addSpace(root, 35)
 
-        val appearanceTitle = text(
-            "APPEARANCE",
-            12f,
-            secondaryColor(),
-            true
+        root.addView(
+            createText("APPEARANCE", 11f, accentColor, true)
         )
-
-        root.addView(appearanceTitle)
 
         addSpace(root, 12)
 
-        val themeCard = LinearLayout(this).apply {
+        addSettingOption(
+            root,
+            "Dark theme",
+            "A dark Ubuntu-inspired interface",
+            "dark"
+        )
+
+        addSpace(root, 10)
+
+        addSettingOption(
+            root,
+            "Light theme",
+            "A clean light interface",
+            "light"
+        )
+
+        addSpace(root, 10)
+
+        addSettingOption(
+            root,
+            "System default",
+            "Follow your Android device theme",
+            "system"
+        )
+
+        addSpace(root, 35)
+
+        root.addView(
+            createText("ABOUT", 11f, accentColor, true)
+        )
+
+        addSpace(root, 12)
+
+        val about = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = bg(surface(), 18f)
-            setPadding(18, 18, 18, 18)
+            background = roundedBackground(surfaceColor, 16)
+            setPadding(dp(18), dp(18), dp(18), dp(18))
         }
 
-        val themeTitle = text(
-            "Theme",
-            17f,
-            textColor(),
-            true
+        about.addView(
+            createText("Ubuntu Terminal", 17f, textColor, true)
         )
 
-        themeCard.addView(themeTitle)
+        addSpace(about, 8)
 
-        val themeDescription = text(
-            "Choose how Ubuntu Terminal looks.",
-            13f,
-            secondaryColor()
+        about.addView(
+            createText(
+                "Android Linux environment using Ubuntu and PRoot.",
+                13f,
+                secondaryColor
+            )
         )
 
-        val descriptionParams = LinearLayout.LayoutParams(
-            -1,
-            -2
+        addSpace(about, 12)
+
+        about.addView(
+            createText("Version 1.0.0", 11f, secondaryColor)
         )
 
-        descriptionParams.topMargin = 6
-
-        themeCard.addView(
-            themeDescription,
-            descriptionParams
-        )
-
-        addSpace(themeCard, 20)
-
-        addThemeOption(themeCard, "Dark", true)
-        addThemeOption(themeCard, "Light", false)
-        addThemeOption(themeCard, "System", null)
-
-        val cardParams = LinearLayout.LayoutParams(
-            -1,
-            -2
-        )
-
-        root.addView(themeCard, cardParams)
-
-        addSpace(root, 24)
-
-        val info = text(
-            "UBUNTU TERMINAL\nVersion 1.0\n\n" +
-            "A Linux terminal environment for Android.",
-            13f,
-            secondaryColor()
-        )
-
-        info.gravity = Gravity.CENTER
-        root.addView(info)
+        root.addView(about)
 
         setContentView(root)
-
-        root.alpha = 0f
-        root.animate().alpha(1f).setDuration(300).start()
     }
 
-    private fun addThemeOption(
-        parent: LinearLayout,
-        label: String,
-        dark: Boolean?
+    private fun addSettingOption(
+        root: LinearLayout,
+        title: String,
+        description: String,
+        value: String
     ) {
+        val selected = preferences.getString("theme", "dark") == value
 
-        val selected = when (dark) {
-            true -> prefs.getBoolean("dark_mode", true) &&
-                    prefs.getString("theme", "dark") == "dark"
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(
+                if (selected) {
+                    if (darkMode) Color.rgb(55, 37, 34)
+                    else Color.rgb(255, 235, 228)
+                } else {
+                    surfaceColor
+                },
+                15
+            )
 
-            false -> !prefs.getBoolean("dark_mode", true) &&
-                    prefs.getString("theme", "dark") == "light"
-
-            null -> prefs.getString("theme", "dark") == "system"
+            setPadding(dp(18), dp(15), dp(18), dp(15))
+            isClickable = true
+            isFocusable = true
         }
 
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        val titleRow = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(8, 14, 8, 14)
         }
 
-        val name = text(
-            label,
-            15f,
-            textColor()
-        )
+        val titleView = createText(title, 15f, textColor, true)
 
-        row.addView(
-            name,
+        titleRow.addView(
+            titleView,
             LinearLayout.LayoutParams(0, -2, 1f)
         )
 
-        val indicator = text(
-            if (selected) "●" else "○",
-            20f,
-            if (selected) orange else secondaryColor()
-        )
-
-        row.addView(indicator)
-
-        row.setOnClickListener {
-
-            when (dark) {
-
-                true -> {
-                    prefs.edit()
-                        .putString("theme", "dark")
-                        .putBoolean("dark_mode", true)
-                        .apply()
-                }
-
-                false -> {
-                    prefs.edit()
-                        .putString("theme", "light")
-                        .putBoolean("dark_mode", false)
-                        .apply()
-                }
-
-                null -> {
-                    prefs.edit()
-                        .putString("theme", "system")
-                        .putBoolean(
-                            "dark_mode",
-                            (resources.configuration.uiMode and
-                                Configuration.UI_MODE_NIGHT_MASK) ==
-                                Configuration.UI_MODE_NIGHT_YES
-                        )
-                        .apply()
-                }
-            }
-
-            isDark = prefs.getBoolean("dark_mode", true)
-
-            showSettings()
+        if (selected) {
+            titleRow.addView(
+                createText("✓", 20f, accentColor, true)
+            )
         }
 
-        parent.addView(row)
-    }
+        card.addView(titleRow)
 
-    private fun addSpace(
-        parent: LinearLayout,
-        height: Int
-    ) {
-        parent.addView(
-            View(this),
-            LinearLayout.LayoutParams(1, height)
+        addSpace(card, 5)
+
+        card.addView(
+            createText(description, 12f, secondaryColor)
+        )
+
+        card.setOnClickListener {
+            saveTheme(value)
+        }
+
+        root.addView(
+            card,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                -2
+            )
         )
     }
 
-    private fun openTerminal() {
+    // ------------------------------------------------
+    // SETUP INFORMATION
+    // ------------------------------------------------
 
-        try {
-            startActivity(
-                android.content.Intent(
-                    this,
-                    MakeTerminal::class.java
-                )
-            )
-        } catch (e: Exception) {
-            Toast.makeText(
-                this,
-                "Unable to open terminal: ${e.message}",
-                Toast.LENGTH_LONG
-            ).show()
+    private fun showSetupInfo() {
+        val builder = android.app.AlertDialog.Builder(this)
+
+        builder.setTitle("Ubuntu Setup")
+
+        builder.setMessage(
+            "Before opening the terminal, you need:\n\n" +
+                "1. A compatible PRoot binary.\n" +
+                "2. An ARM64 Ubuntu root filesystem.\n" +
+                "3. The root filesystem extracted correctly.\n\n" +
+                "Once installed, you can open the terminal."
+        )
+
+        builder.setPositiveButton("OK", null)
+
+        builder.show()
+    }
+
+    // ------------------------------------------------
+    // NAVIGATION
+    // ------------------------------------------------
+
+    private fun openTerminal() {
+        startActivity(
+            Intent(this, MakeTerminal::class.java)
+        )
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        if (preferences.getString("theme", "dark") == "system") {
+            applySavedTheme()
+
+            if (intent.getBooleanExtra("open_settings", false)) {
+                showSettings()
+            } else {
+                showWelcome()
+            }
         }
     }
 }
